@@ -16,7 +16,6 @@ pprinter = pprint.PrettyPrinter(indent=2)
 # TODO: add queue Add..., action on complete
 # TODO: add a help window with a toggle
 # TODO: make refresh immediate after handleCmd returns
-# TODO: ability to toggle columns
 # TODO: read info from config file or command line
 # TODO: put queue summary at top
 # TODO: make Textbox handle control characters
@@ -48,6 +47,7 @@ help = '''
 | y: change priority | ------------------- |
 | p: pause           | q: quit             |
 | r: resume          | h: toggle help      |
+|                    | t: toggle column    |
 | ---------------------------------------- |
 |    Syntax: command start-stop argument   |
 ============================================
@@ -106,7 +106,6 @@ def _readFile(path):
 
 def strWithWidth(s, w):
 	return '{0:{1}}'.format(s[:w], w)
-	
 
 def _getConfig():
 	configPath = os.path.expanduser('~/Library/Application Support/SABnzbd/sabnzbd.ini')
@@ -134,7 +133,6 @@ def printQueue(queue, win):
 	height, width = win.getmaxyx()
 	y, x = win.getbegyx()
 	win.clear()
-	columns = initColumns()
 	visibleColumns = [column for column in columns if column.visible]
 	colWidth = sum([column.width + 1 for column in visibleColumns])
 	for index, item in enumerate(queue['slots']):
@@ -153,14 +151,22 @@ def printQueue(queue, win):
 	win.refresh()
 
 def handleCmd(cmdStr):
-	global ids
+	global ids, columns
 	cmdName = cmdStr[0]
 	
 	if cmdName == 'q':
 		sys.exit(0)
 	
-	start = end = None
 	cmdStr = cmdStr[1:].strip()
+	
+	if cmdName == 't':
+		try:
+			column = [column for column in columns if column.shortName == cmdStr[0]][0]
+		except IndexError: pass
+		else:
+			column.visible = not column.visible
+	
+	start = end = None
 	startMatch = re.match(r'(\d+)', cmdStr)
 	if startMatch:
 		start = int(startMatch.groups()[0])
@@ -180,7 +186,8 @@ def handleCmd(cmdStr):
 			sendCmd(base, apiKey, itemCmds[cmdName][0], ids[i], value2)
 
 def runQueueWin(base, apiKey, win):
-	global ids
+	global ids, columns
+	columns = initColumns()
 	while True:
 		queue = sendCmd(base, apiKey, 'queue')['queue']
 		ids = list()
