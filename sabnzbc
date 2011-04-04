@@ -9,13 +9,13 @@ import sys
 import time
 import itertools
 import threading
+import datetime
 from curses.textpad import Textbox
 
 pprinter = pprint.PrettyPrinter(indent=2)
 
 # TODO: add queue Add..., action on complete
 # TODO: add a help window with a toggle
-# TODO: make refresh immediate after handleCmd returns
 # TODO: make Textbox handle control characters
 # TODO: history view + commands
 
@@ -151,7 +151,7 @@ def printQueue(queue, win):
 	win.refresh()
 
 def handleCmd(cmdStr):
-	global ids, columns
+	global ids, columns, forceUpdate
 	cmdName = cmdStr[0]
 	
 	if cmdName == 'q':
@@ -184,10 +184,13 @@ def handleCmd(cmdStr):
 		for i in itemRange:
 			#print base, apiKey, itemCmds[cmdName][0], i, value2
 			sendCmd(base, apiKey, itemCmds[cmdName][0], ids[i], value2)
+	forceUpdate = True
 
 def runQueueWin(base, apiKey, win):
-	global ids, columns
+	global ids, columns, forceUpdate
 	columns = initColumns()
+	forceUpdate = False
+	refreshInterval = datetime.timedelta(0, 3)
 	while True:
 		queue = sendCmd(base, apiKey, 'queue')['queue']
 		ids = list()
@@ -201,7 +204,9 @@ def runQueueWin(base, apiKey, win):
 				#print repr(avgAge)
 				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
 		printQueue(queue, win)
-		time.sleep(3)
+		lastPrint = datetime.datetime.now()
+		while datetime.datetime.now() - lastPrint < refreshInterval and not forceUpdate: pass
+		forceUpdate = False
 
 def main(base, apiKey):
 	if not base and not apiKey:
