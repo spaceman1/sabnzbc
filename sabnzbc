@@ -17,7 +17,6 @@ pprinter = pprint.PrettyPrinter(indent=2)
 # TODO: add a help window with a toggle
 # TODO: make refresh immediate after handleCmd returns
 # TODO: read info from config file or command line
-# TODO: put queue summary at top
 # TODO: make Textbox handle control characters
 # TODO: history view + commands
 
@@ -135,9 +134,11 @@ def printQueue(queue, win):
 	win.clear()
 	visibleColumns = [column for column in columns if column.visible]
 	colWidth = sum([column.width + 1 for column in visibleColumns])
+	win.addstr('status:%s, remaining:%s MB, ETA: %s, speed:%s KB/s available:%s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
+	y += 1
 	for index, item in enumerate(queue['slots']):
 		if y == height:
-			y = 0
+			y = 1
 			x += colWidth
 		if x == width: break
 		#print y, x 
