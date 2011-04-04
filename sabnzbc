@@ -30,21 +30,21 @@ itemCmds = {
 queueCmds = {'P': 'pause', 'R': 'resume', 'S': 'shutdown'}
 
 help = '''
-============================================
-| Item Commands      | Queue Commands      |
-| ------------------ | ------------------- |
-| d: delete          | P: pause            |
-| m: move            | R: resume           |
-| s: change script   | S: shutdown         |
-| c: change catagory |                     |
-| o: change options  | Other Commands      |
-| y: change priority | ------------------- |
-| p: pause           | q: quit             |
-| r: resume          | h: toggle help      |
-|                    | t: toggle column    |
-| ---------------------------------------- |
-|    Syntax: command start-stop argument   |
-============================================
+=============================================================================
+| Item Commands      | Queue Commands      | Column Names                   |
+| ------------------ | ------------------- | ------------------------------ |
+| d: delete          | P: pause            | t: Status       p: Priority    |
+| m: move            | R: resume           | i: Index        c: Category    |
+| s: change script   | S: shutdown         | e: ETA          r: MB Left     |
+| c: change catagory |                     | l: Time Left    %: Percentage  |
+| o: change options  | Other Commands      | a: Age          b: SAB ID      |
+| y: change priority | ------------------- | s: Script       o: Options     |
+| p: pause           | q: quit             | g: Message ID   z: Size        |
+| r: resume          | h: toggle help      | v: Verbosity    n: Name        |
+|                    | t: toggle column    | m: Size                        |
+| ------------------------------------------------------------------------- |
+|                    Syntax: command start-stop argument                    |
+=============================================================================
 '''
 
 class Column(object):
@@ -65,7 +65,7 @@ def initColumns():
 		Column('script'),
 		Column('msgid', 'Message ID', shortName='g'),
 		Column('verbosity'),
-		Column('mb', 'MB'),
+		Column('mb', 'Size', 'm'),
 		Column('filename', 'Name', width=40, visible=True),
 		Column('priority'),
 		Column('cat', 'Category', visible=True),
