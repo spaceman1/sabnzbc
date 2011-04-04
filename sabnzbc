@@ -53,8 +53,41 @@ help = '''
 ============================================
 '''
 
-class config():
-	pass
+class Column(object):
+	def __init__(self, sabName, displayName=None, shortName=None, width=10, visible=False):
+		self.sabName = sabName
+		self.displayName = displayName if displayName else sabName.capitalize()
+		self.shortName = shortName if shortName else self.displayName[0].lower()
+		self.width = width
+		self.visible = visible
+
+def initColumns():
+	columns = [
+		Column('status', shortName='t'),
+		Column('index', width=3, visible=True),
+		Column('eta', 'ETA'),
+		Column('timeleft', 'Time Left', 'l', 8),
+		Column('avg_age', 'Age', width=3),
+		Column('script'),
+		Column('msgid', 'Message ID', shortName='g'),
+		Column('verbosity'),
+		Column('mb', 'MB'),
+		Column('filename', 'Name', width=40, visible=True),
+		Column('priority'),
+		Column('cat', 'Category', visible=True),
+		Column('mbleft', 'MB Left', 'r'),
+		Column('percentage', shortName='%'),
+		Column('nzo_id', 'SAB ID', 'b'),
+		Column('unpackopts', 'Options'),
+		Column('size', shortName='z')
+	]
+	# Sanity check
+	shortNames = set()
+	for column in columns:
+		shortName = column.shortName
+		if shortName not in shortNames: shortNames.add(shortName)
+		else: raise KeyError, 'short name for %s already in use' % column.displayName
+	return columns
 
 def _getURL(url):
 	f = urllib.urlopen(url)
@@ -101,7 +134,9 @@ def printQueue(queue, win):
 	height, width = win.getmaxyx()
 	y, x = win.getbegyx()
 	win.clear()
-	colWidth = 3 + 40 + 15 + 5
+	columns = initColumns()
+	visibleColumns = [column for column in columns if column.visible]
+	colWidth = sum([column.width + 1 for column in visibleColumns])
 	for index, item in enumerate(queue['slots']):
 		if y == height:
 			y = 0
@@ -109,9 +144,10 @@ def printQueue(queue, win):
 		if x == width: break
 		#print y, x 
 		try:
-			win.addnstr(y, x, str(index), 3)
-			win.addnstr(y, x + 4, item['filename'], 40)
-			win.addnstr(y, x + 46, item['cat'], 15)
+			offset = 0
+			for column in visibleColumns:
+				win.addnstr(y, x + offset, str(item[column.sabName])[:column.width], column.width)
+				offset += column.width + 1
 		except curses.error: pass
 		y += 1
 	win.refresh()
