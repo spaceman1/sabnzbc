@@ -14,6 +14,13 @@ from curses.textpad import Textbox
 # TODO: add queue Add..., action on complete
 # TODO: make Textbox handle control characters
 # TODO: history view + commands
+# TODO: Remember which columns are visible between runs
+# TODO: Allow column re-ordering
+# TODO: Figure out why item commands are now failing
+# TODO: Turn queue win into a pad so we can view large lists in small windows
+# TODO: Figure out how to move around that pad
+# TODO: Keep cursor in command entry line
+# TODO: Make a readme file and push to github
 
 itemCmds = {
 	'd': ['queue&name=delete', None],
@@ -129,7 +136,6 @@ def sendCmd(base, apiKey, cmd, arg1=None, arg2=None):
 	s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (base, cmd, apiKey)
 	if arg1: s += '&value='  + urllib.quote(arg1)
 	if arg2: s += '&value2=' + urllib.quote(arg2)
-	#print s
 	return _getJSON(s)
 	
 def printQueue(queue, win):
@@ -145,7 +151,6 @@ def printQueue(queue, win):
 			y = 1
 			x += colWidth
 		if x == width: break
-		#print y, x 
 		try:
 			offset = 0
 			for column in visibleColumns:
@@ -198,7 +203,6 @@ def handleCmd(cmdStr):
 		if itemCmds[cmdName][1] == 'id': arg = ids[int(arg)]
 		value2 = arg if (arg != '') else None		
 		for i in itemRange:
-			#print base, apiKey, itemCmds[cmdName][0], i, value2
 			sendCmd(base, apiKey, itemCmds[cmdName][0], ids[i], value2)
 	forceUpdate = True
 
@@ -218,7 +222,6 @@ def runQueueWin(base, apiKey, win):
 			avgAge = item['avg_age'].split('d')
 			if len(avgAge) == 2:
 				avgAge = int(avgAge[0])
-				#print repr(avgAge)
 				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
 		printQueue(queue, win)
 		if helpOn: printHelp(win)
@@ -250,7 +253,7 @@ def main(base, apiKey):
 		promptWin.clear()
 		promptWin.refresh()
 		cmdStr = promptWin.getstr(0, 0)
-		handleCmd(cmdStr)			
+		handleCmd(cmdStr)
 
 if __name__ == '__main__':
 	if len(sys.argv) == 3:
