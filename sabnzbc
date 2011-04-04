@@ -2,17 +2,14 @@
 import json
 import re
 import os
-import pprint
 import urllib
 import curses
 import sys
 import time
-import itertools
 import threading
 import datetime
+import platform
 from curses.textpad import Textbox
-
-pprinter = pprint.PrettyPrinter(indent=2)
 
 # TODO: add queue Add..., action on complete
 # TODO: add a help window with a toggle
@@ -106,7 +103,16 @@ def strWithWidth(s, w):
 	return '{0:{1}}'.format(s[:w], w)
 
 def _getConfig():
-	configPath = os.path.expanduser('~/Library/Application Support/SABnzbd/sabnzbd.ini')
+	system = platform.system()
+	if system == 'Darwin': configPath = '~/Library/Application Support/SABnzbd/sabnzbd.ini'
+	elif system == 'Unix' or system == 'Linux': configPath ='~/.sabnzbd/sabnzbd.ini'
+	elif system == 'Windows':
+		winVersion = os.sys.getwindowsversion()
+		oldVersions = {(1, 4, 0): "95", (1, 4, 10): "98", (1, 4, 90): "ME", (2, 4, 0): "NT", (2, 5, 0): "2K", (2, 5, 1): "XP", (2, 5, 2): '2003',}
+		if winVersion in oldVersions: configPath = '~\\local data\\application data\\sabnzbd\\sabnzbd.ini'
+		else: configPath = '~\\AppData\\Local\\sabnzbd\\sabnzbd.ini'
+	
+	configPath = os.path.expanduser(configPath)
 	if not os.path.exists(configPath):
 		return (None, None)
 
