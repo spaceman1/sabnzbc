@@ -12,7 +12,6 @@ import platform
 from curses.textpad import Textbox
 
 # TODO: add queue Add..., action on complete
-# TODO: add a help window with a toggle
 # TODO: make Textbox handle control characters
 # TODO: history view + commands
 
@@ -154,14 +153,25 @@ def printQueue(queue, win):
 				offset += column.width + 1
 		except curses.error: pass
 		y += 1
-	win.refresh()
+
+def printHelp(win):
+	height, width = win.getmaxyx()
+	y, x = win.getbegyx()
+	row = y + height - help.count('\n')
+	for line in help.split('\n'):
+		try: win.addnstr(row, x, line, len(line))
+		except: pass
+		row += 1
 
 def handleCmd(cmdStr):
-	global ids, columns, forceUpdate
+	global ids, columns, forceUpdate, helpOn
 	cmdName = cmdStr[0]
 	
 	if cmdName == 'q':
 		sys.exit(0)
+	
+	if cmdName == 'h':
+		helpOn = not helpOn
 	
 	cmdStr = cmdStr[1:].strip()
 	
@@ -182,7 +192,7 @@ def handleCmd(cmdStr):
 			end = int(endMatch.groups()[0])
 			cmdStr = cmdStr[endMatch.end():].strip()
 	arg = cmdStr
-
+	
 	if cmdName in itemCmds and (start != None) and not ((itemCmds[cmdName][1] == None) ^ (arg == '')):
 		itemRange = range(start, end + 1)  if (end and end > start) else range(start, start + 1)
 		if itemCmds[cmdName][1] == 'id': arg = ids[int(arg)]
@@ -193,9 +203,10 @@ def handleCmd(cmdStr):
 	forceUpdate = True
 
 def runQueueWin(base, apiKey, win):
-	global ids, columns, forceUpdate
+	global ids, columns, forceUpdate, helpOn
 	columns = initColumns()
 	forceUpdate = False
+	helpOn = False
 	refreshInterval = datetime.timedelta(0, 3)
 	while True:
 		queue = sendCmd(base, apiKey, 'queue')['queue']
@@ -210,6 +221,8 @@ def runQueueWin(base, apiKey, win):
 				#print repr(avgAge)
 				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
 		printQueue(queue, win)
+		if helpOn: printHelp(win)
+		win.refresh()
 		lastPrint = datetime.datetime.now()
 		while datetime.datetime.now() - lastPrint < refreshInterval and not forceUpdate: pass
 		forceUpdate = False
