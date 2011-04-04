@@ -200,28 +200,32 @@ def runQueueWin(base, apiKey, win):
 				avgAge = int(avgAge[0])
 				#print repr(avgAge)
 				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
-		printQueue(queue, queueWin)
+		printQueue(queue, win)
 		time.sleep(3)
 
-apiKey, port = _getConfig()
-base = 'localhost:%s' % port
+def main():
+	apiKey, port = _getConfig()
+	base = 'localhost:%s' % port
+	
+	screen = curses.initscr()
+	height, width = screen.getmaxyx()
+	y, x = screen.getbegyx()
+	queueWin = curses.newwin(height - 1, width, y, x)
+	
+	prompt = curses.newwin(1, 4, height - 1, 0)
+	prompt.addstr(0, 0, '>>>')
+	prompt.refresh()
+	
+	promptWin = curses.newwin(1, width - 4, height - 1, 4)
+	
+	qt = threading.Thread(None, runQueueWin, None, [base, apiKey, queueWin])
+	qt.start()
+	
+	while True:
+		promptWin.clear()
+		promptWin.refresh()
+		cmdStr = promptWin.getstr(0, 0)
+		handleCmd(cmdStr)			
 
-screen = curses.initscr()
-height, width = screen.getmaxyx()
-y, x = screen.getbegyx()
-queueWin = curses.newwin(height - 1, width, y, x)
-
-prompt = curses.newwin(1, 4, height - 1, 0)
-prompt.addstr(0, 0, '>>>')
-prompt.refresh()
-
-promptWin = curses.newwin(1, width - 4, height - 1, 4)
-
-qt = threading.Thread(None, runQueueWin, None, [base, apiKey, queueWin])
-qt.start()
-
-while True:
-	promptWin.clear()
-	promptWin.refresh()
-	cmdStr = promptWin.getstr(0, 0)
-	handleCmd(cmdStr)			
+if __name__ == '__main__':
+	main()
