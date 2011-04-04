@@ -1,0 +1,184 @@
+#!/usr/bin/python
+import json
+import re
+import os
+import pprint
+import urllib
+import curses
+import sys
+import time
+import itertools
+import threading
+from curses.textpad import Textbox
+
+pprinter = pprint.PrettyPrinter(indent=2)
+
+# TODO: add queue Add..., action on complete
+# TODO: add a help window with a toggle
+# TODO: make refresh immediate after handleCmd returns
+# TODO: ability to toggle columns
+# TODO: read info from config file or command line
+# TODO: put queue summary at top
+# TODO: make Textbox handle control characters
+# TODO: history view + commands
+
+itemCmds = {
+	'd': ['queue&name=delete', None],
+	'm': ['switch', 'id'],
+	's': ['change_script', 'str'],
+	'c': ['change_cat', 'str'],
+	'o': ['change_opts', 'str'],
+	'y': ['priority', 'str'],
+	'p': ['pause', 'id'],
+	'r': ['resume', 'id'],
+	#'n': ['rename', 'str'] # Not yet implemented on SABnzbd end
+	}
+
+queueCmds = {'P': 'pause', 'R': 'resume', 'S': 'shutdown'}
+
+help = '''
+============================================
+| Item Commands      | Queue Commands      |
+| ------------------ | ------------------- |
+| d: delete          | P: pause            |
+| m: move            | R: resume           |
+| s: change script   | S: shutdown         |
+| c: change catagory |                     |
+| o: change options  | Other Commands      |
+| y: change priority | ------------------- |
+| p: pause           | q: quit             |
+| r: resume          | h: toggle help      |
+| ---------------------------------------- |
+|    Syntax: command start-stop argument   |
+============================================
+'''
+
+class config():
+	pass
+
+def _getURL(url):
+	f = urllib.urlopen(url)
+	r = f.read()
+	f.close()
+	return r
+
+def _getJSON(url):
+	return json.loads(_getURL(url))
+
+def _readFile(path):
+	f = open(path)
+	r = f.read()
+	f.close()
+	return r
+
+def strWithWidth(s, w):
+	return '{0:{1}}'.format(s[:w], w)
+	
+
+def _getConfig():
+	configPath = os.path.expanduser('~/Library/Application Support/SABnzbd/sabnzbd.ini')
+	if not os.path.exists(configPath):
+		return (None, None)
+
+	r = _readFile(configPath)
+	apiKey = None
+	port = None
+	for line in r.split('\n'):
+		if line.startswith('api_key'):
+			apiKey = line.split('=')[1].strip()
+		elif line.startswith('port') and not port:
+			port = line.split('=')[1].strip()
+	return (apiKey, port)
+
+def sendCmd(base, apiKey, cmd, arg1=None, arg2=None):
+	s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (base, cmd, apiKey)
+	if arg1: s += '&value='  + urllib.quote(arg1)
+	if arg2: s += '&value2=' + urllib.quote(arg2)
+	#print s
+	return _getJSON(s)
+	
+def printQueue(queue, win):
+	height, width = win.getmaxyx()
+	y, x = win.getbegyx()
+	win.clear()
+	colWidth = 3 + 40 + 15 + 5
+	for index, item in enumerate(queue['slots']):
+		if y == height:
+			y = 0
+			x += colWidth
+		if x == width: break
+		#print y, x 
+		try:
+			win.addnstr(y, x, str(index), 3)
+			win.addnstr(y, x + 4, item['filename'], 40)
+			win.addnstr(y, x + 46, item['cat'], 15)
+		except curses.error: pass
+		y += 1
+	win.refresh()
+
+def handleCmd(cmdStr):
+	global ids
+	cmdName = cmdStr[0]
+	
+	if cmdName == 'q':
+		sys.exit(0)
+	
+	start = end = None
+	cmdStr = cmdStr[1:].strip()
+	startMatch = re.match(r'(\d+)', cmdStr)
+	if startMatch:
+		start = int(startMatch.groups()[0])
+		cmdStr = cmdStr[startMatch.end():].strip()
+		endMatch = re.match(r'-(\d+)', cmdStr)
+		if endMatch:
+			end = int(endMatch.groups()[0])
+			cmdStr = cmdStr[endMatch.end():].strip()
+	arg = cmdStr
+
+	if cmdName in itemCmds and (start != None) and not ((itemCmds[cmdName][1] == None) ^ (arg == '')):
+		itemRange = range(start, end + 1)  if (end and end > start) else range(start, start + 1)
+		if itemCmds[cmdName][1] == 'id': arg = ids[int(arg)]
+		value2 = arg if (arg != '') else None		
+		for i in itemRange:
+			#print base, apiKey, itemCmds[cmdName][0], i, value2
+			sendCmd(base, apiKey, itemCmds[cmdName][0], ids[i], value2)
+
+def runQueueWin(base, apiKey, win):
+	global ids
+	while True:
+		queue = sendCmd(base, apiKey, 'queue')['queue']
+		ids = list()
+		# Note: 15027d is an invalid age
+		maxAvgAge = 0
+		for item in queue['slots']:
+			ids.append(item['nzo_id'])
+			avgAge = item['avg_age'].split('d')
+			if len(avgAge) == 2:
+				avgAge = int(avgAge[0])
+				#print repr(avgAge)
+				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
+		printQueue(queue, queueWin)
+		time.sleep(3)
+
+apiKey, port = _getConfig()
+base = 'localhost:%s' % port
+
+screen = curses.initscr()
+height, width = screen.getmaxyx()
+y, x = screen.getbegyx()
+queueWin = curses.newwin(height - 1, width, y, x)
+
+prompt = curses.newwin(1, 4, height - 1, 0)
+prompt.addstr(0, 0, '>>>')
+prompt.refresh()
+
+promptWin = curses.newwin(1, width - 4, height - 1, 4)
+
+qt = threading.Thread(None, runQueueWin, None, [base, apiKey, queueWin])
+qt.start()
+
+while True:
+	promptWin.clear()
+	promptWin.refresh()
+	cmdStr = promptWin.getstr(0, 0)
+	handleCmd(cmdStr)			
