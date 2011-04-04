@@ -16,7 +16,6 @@ pprinter = pprint.PrettyPrinter(indent=2)
 # TODO: add queue Add..., action on complete
 # TODO: add a help window with a toggle
 # TODO: make refresh immediate after handleCmd returns
-# TODO: read info from config file or command line
 # TODO: make Textbox handle control characters
 # TODO: history view + commands
 
@@ -204,9 +203,10 @@ def runQueueWin(base, apiKey, win):
 		printQueue(queue, win)
 		time.sleep(3)
 
-def main():
-	apiKey, port = _getConfig()
-	base = 'localhost:%s' % port
+def main(base, apiKey):
+	if not base and not apiKey:
+		apiKey, port = _getConfig()
+		base = 'localhost:%s' % port
 	
 	screen = curses.initscr()
 	height, width = screen.getmaxyx()
@@ -229,4 +229,11 @@ def main():
 		handleCmd(cmdStr)			
 
 if __name__ == '__main__':
-	main()
+	if len(sys.argv) == 3:
+		name, base, apiKey = sys.argv
+	elif len(sys.argv) > 1:
+		print 'Usage: %s SABnzbd-URL API-Key' % sys.argv[0]
+		sys.exit(1)
+	else:
+		base = apiKey = None
+	main(base, apiKey)
