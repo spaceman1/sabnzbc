@@ -16,7 +16,6 @@ from curses.textpad import Textbox
 # TODO: history view + commands
 # TODO: Remember which columns are visible between runs
 # TODO: Allow column re-ordering
-# TODO: Figure out why item commands are now failing
 # TODO: Turn queue win into a pad so we can view large lists in small windows
 # TODO: Figure out how to move around that pad
 # TODO: Keep cursor in command entry line
@@ -90,6 +89,13 @@ def initColumns():
 		else: raise KeyError, 'short name for %s already in use' % column.displayName
 	return columns
 
+def log(*args):
+	f = open(os.path.expanduser('~/Library/Logs/sabnzbc.log'), 'a')
+	f.write(datetime.datetime.now().strftime('%c: '))
+	for arg in args: f.write('%s ' % arg)
+	f.write('\n')
+	f.close()
+
 def _getURL(url):
 	f = urllib.urlopen(url)
 	r = f.read()
@@ -136,6 +142,7 @@ def sendCmd(base, apiKey, cmd, arg1=None, arg2=None):
 	s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (base, cmd, apiKey)
 	if arg1: s += '&value='  + urllib.quote(arg1)
 	if arg2: s += '&value2=' + urllib.quote(arg2)
+	#log('sending command', s)
 	return _getJSON(s)
 	
 def printQueue(queue, win):
@@ -168,10 +175,10 @@ def printHelp(win):
 		except: pass
 		row += 1
 
-def handleCmd(cmdStr):
+def handleCmd(base, apiKey, cmdStr):
 	global ids, columns, forceUpdate, helpOn
 	cmdName = cmdStr[0]
-	
+
 	if cmdName == 'q':
 		sys.exit(0)
 	
@@ -234,7 +241,6 @@ def main(base, apiKey):
 	if not base and not apiKey:
 		apiKey, port = _getConfig()
 		base = 'localhost:%s' % port
-	
 	screen = curses.initscr()
 	height, width = screen.getmaxyx()
 	y, x = screen.getbegyx()
@@ -253,7 +259,7 @@ def main(base, apiKey):
 		promptWin.clear()
 		promptWin.refresh()
 		cmdStr = promptWin.getstr(0, 0)
-		handleCmd(cmdStr)
+		handleCmd(base, apiKey, cmdStr)
 
 if __name__ == '__main__':
 	if len(sys.argv) == 3:
