@@ -18,7 +18,6 @@ from curses.textpad import Textbox
 # TODO: Allow column re-ordering
 # TODO: Turn queue win into a pad so we can view large lists in small windows
 # TODO: Figure out how to move around that pad
-# TODO: Keep cursor in command entry line
 # TODO: Make a readme file and push to github
 
 itemCmds = {
@@ -230,9 +229,12 @@ def runQueueWin(base, apiKey, win):
 			if len(avgAge) == 2:
 				avgAge = int(avgAge[0])
 				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
+		cursY, cursX = curses.getsyx()
 		printQueue(queue, win)
 		if helpOn: printHelp(win)
 		win.refresh()
+		curses.setsyx(cursY, cursX)
+		curses.doupdate()
 		lastPrint = datetime.datetime.now()
 		while datetime.datetime.now() - lastPrint < refreshInterval and not forceUpdate: pass
 		forceUpdate = False
@@ -269,4 +271,6 @@ if __name__ == '__main__':
 		sys.exit(1)
 	else:
 		base = apiKey = None
-	main(base, apiKey)
+		try: main(base, apiKey)
+		finally: curses.endwin()
+	
