@@ -225,6 +225,8 @@ def handleCmd(base, apiKey, cmdStr):
 		value2 = arg if (arg != '') else None		
 		for i in itemRange:
 			sendCmd(base, apiKey, itemCmds[cmdName][0], ids[i], value2)
+	elif cmdName in queueCmds:
+		sendCmd(base, apiKey, queueCmds[cmdName])
 	forceUpdate = True
 
 def runQueueWin(base, apiKey, win):
