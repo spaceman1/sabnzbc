@@ -167,7 +167,7 @@ def printQueue(queue, win):
 		try:
 			offset = 0
 			for column in visibleColumns:
-				try: win.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), column.width), column.width)
+				try: win.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, width - x - offset)), column.width)
 				except: pass
 				offset += column.width + 1
 		except curses.error: pass
