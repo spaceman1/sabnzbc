@@ -143,12 +143,14 @@ def printColumnHeaders(win, columns, y, x):
 		x += column.width + 1
 
 def printQueue(queue, win):
+	curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
+	bgcolor = curses.color_pair(1)
 	height, width = win.getmaxyx()
 	y, x = win.getbegyx()
 	win.clear()
 	visibleColumns = [column for column in columns if column.visible]
 	colWidth = sum([column.width + 1 for column in visibleColumns])
-	win.addstr('status:%s, remaining:%s MB, ETA: %s, speed:%s KB/s available:%s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
+	win.addstr('status: %s, remaining: %s MB, ETA: %s, speed: %s KB/s available: %s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
 	y += 1
 	offset = 0
 	printColumnHeaders(win, visibleColumns, y, offset)
@@ -157,16 +159,20 @@ def printQueue(queue, win):
 		if y == height:
 			y = 2
 			x += colWidth
+			win.vline(1, x - 1, '|', height - 1)
 			printColumnHeaders(win, visibleColumns, 1, x)
 		if x == width: break
+		if int(item['index']) % 2 == 0:
+			win.attron(bgcolor)
 		try:
 			offset = 0
 			for column in visibleColumns:
-				try: win.addnstr(y, x + offset, str(item[column.sabName]), column.width)
+				try: win.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), column.width), column.width)
 				except: pass
 				offset += column.width + 1
 		except curses.error: pass
 		y += 1
+		win.attroff(bgcolor)
 
 def printHelp(win):
 	height, width = win.getmaxyx()
@@ -231,13 +237,11 @@ def runQueueWin(base, apiKey, win):
 		queue = sendCmd(base, apiKey, 'queue')['queue']
 		ids = list()
 		# Note: 15027d is an invalid age
-		maxAvgAge = 0
+		maxNameLen = 0
 		for item in queue['slots']:
 			ids.append(item['nzo_id'])
-			avgAge = item['avg_age'].split('d')
-			if len(avgAge) == 2:
-				avgAge = int(avgAge[0])
-				if avgAge != 15027 and avgAge > maxAvgAge: maxAvgAge = avgAge
+			maxNameLen = max(len(item['filename']), maxNameLen)
+		[column for column in columns if column.sabName == 'filename'][0].width = maxNameLen
 		cursY, cursX = curses.getsyx()
 		printQueue(queue, win)
 		if helpOn: printHelp(win)
@@ -253,6 +257,7 @@ def main(base, apiKey):
 		apiKey, port = _getConfig()
 		base = 'localhost:%s' % port
 	screen = curses.initscr()
+	curses.start_color()
 	height, width = screen.getmaxyx()
 	y, x = screen.getbegyx()
 	queueWin = curses.newwin(height - 1, width, y, x)
