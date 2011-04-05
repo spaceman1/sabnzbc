@@ -19,7 +19,7 @@ Item commands work on ranges of items. e.g. :
 	c 12-25 tv
 	m 12-25 0
 
-Will change the category of items 12 through 25 to `tv' and move them to the top of the queue.
+Will change the category of items 12 through 25 to tv and move them to the top of the queue.
 The space after the command character is optional.
 You can also run a command on a single item (e.g. `d 13` deletes item 13)
 
