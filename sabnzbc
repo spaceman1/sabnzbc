@@ -11,15 +11,6 @@ import datetime
 import platform
 from curses.textpad import Textbox
 
-# TODO: add queue Add..., action on complete
-# TODO: make Textbox handle control characters
-# TODO: history view + commands
-# TODO: Remember which columns are visible between runs
-# TODO: Allow column re-ordering
-# TODO: Turn queue win into a pad so we can view large lists in small windows
-# TODO: Figure out how to move around that pad
-# TODO: Make a readme file and push to github
-
 itemCmds = {
 	'd': ['queue&name=delete', None],
 	'm': ['switch', 'id'],
