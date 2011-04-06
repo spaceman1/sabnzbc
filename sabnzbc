@@ -141,6 +141,21 @@ class Dimensions(object):
 	
 	def __ne__(a, b):
 		return not a == b
+
+	def size(self):
+		return self.width * self.height
+	
+	def __lt__(a, b):
+		return a.size < b.size
+	
+	def __gt__(a, b):
+		return a.size > b.size
+	
+	def __le__(a, b):
+		return a.size <= b.size
+	
+	def __ge__(a, b):
+		return a.size >= b.size
 	
 def getDimensions(win):
 	height, width = win.getmaxyx()
