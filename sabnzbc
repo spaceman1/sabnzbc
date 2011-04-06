@@ -131,13 +131,28 @@ def _getConfig():
 class Dimensions(object):
 	def __init__(self, y, x, height, width):
 		self.y, self.x, self.height, self.width = (y, x, height, width)
-
+	
+	def __str__(self):
+		return '%i %i %i %i' % (self.y, self.x, self.height, self.width)
+	
+	def __eq__(a, b):
+		if a.y == b.y and a.x == b.x and a.height == b.height and a.width == b.width: return True
+		else: return False
+	
+	def __ne__(a, b):
+		return not a == b
+	
 def getDimensions(win):
 	height, width = win.getmaxyx()
 	y, x = win.getbegyx()
 	return Dimensions(y, x, height, width)
 	
 class Sabnzbc(object):
+	def newQueueWin(self):
+		self.queueWin = curses.newwin(self.screenDimensions.height - 1, self.screenDimensions.width, self.screenDimensions.y, self.screenDimensions.x)
+		self.queueDimensions = getDimensions(self.queueWin)
+		log('moved queue to ', self.queueDimensions)
+	
 	def __init__(self, base, apiKey):
 		if not base and not apiKey:
 			self.apiKey, port = _getConfig()
@@ -145,8 +160,7 @@ class Sabnzbc(object):
 		self.screen = curses.initscr()
 		curses.start_color()
 		self.screenDimensions = getDimensions(self.screen)
-		self.queueWin = curses.newwin(self.screenDimensions.height - 1, self.screenDimensions.width, self.screenDimensions.y, self.screenDimensions.x)
-		self.queueDimensions = getDimensions(self.queueWin)
+		self.newQueueWin()
 		self.prompt = curses.newwin(1, 4, self.screenDimensions.height - 1, 0)
 		self.prompt.addstr(0, 0, '>>>')
 		self.prompt.refresh()
@@ -190,14 +204,16 @@ class Sabnzbc(object):
 			if x == self.queueDimensions.width: break
 			if int(item['index']) % 2 == 0:
 				self.queueWin.attron(bgcolor)
-			try:
-				offset = 0
-				for column in visibleColumns:
-					try: self.queueWin.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, self.queueDimensions.width - x - offset)), column.width)
-					except:
-						log('Failed to write:', column.displayName, column.width, self.queueDimensions.width, x, offset)
-					offset += column.width + 1
-			except curses.error: pass
+			#try:
+			offset = 0
+			for column in visibleColumns:
+				try: self.queueWin.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, self.queueDimensions.width - x - offset)), column.width)
+				except:
+					log('Failed to write:', column.displayName, column.width, self.queueDimensions.width, x, offset)
+					if self.screenDimensions != getDimensions(self.screen):
+						return
+				offset += column.width + 1
+			#except curses.error: pass
 			y += 1
 			self.queueWin.attroff(bgcolor)
 	
@@ -278,32 +294,56 @@ class Sabnzbc(object):
 			while datetime.datetime.now() - lastPrint < refreshInterval and not self.forceUpdate: pass
 			self.forceUpdate = False
 	
-	def monitorScreenSize(screen, promptWin):
-		dimensions = screen.getmaxyx()
+	def screenDimensionsDidChange(self):
+		# TODO: get runQueueWin to join with this so we don't echo junk
+		# printQueue will have to raise when screen dimensions change
+		# runQueueWin will have to catch that error and return
+		# this will have to restart queue win
+		# TODO: kill and rebuild promptWin in case it no longer fits on the screen
+		self.screenDimensions = getDimensions(self.screen)
+		#log('new screen dimensions', self.screenDimensions)
+		self.screen.clear()
+		del self.queueWin
+		self.newQueueWin()
+		self.queueWin.refresh()
+		try:
+			self.promptWin.mvwin(self.screenDimensions.height - 1, self.screenDimensions.x + 4)
+		except: pass
+		self.promptWin.clear()
+		self.promptWin.refresh()
+		
+		self.prompt.mvwin(self.screenDimensions.height - 1, self.screenDimensions.x)
+		self.prompt.clear()
+		self.prompt.addstr(0, 0, '>>>')
+		self.prompt.refresh()
+		
+		self.screen.refresh()
+		curses.doupdate()
+		self.forceUpdate = True
+		#log('forcing update')
+	
+	def monitorScreenSize(self):
 		while True:
-			newDimensions = screen.getmaxyx()
-			if newDimensions != dimensions:
-				log(newDimensions)
-				promptWin.mvwin(newDimensions[0] - 1, newDimensions[1])
-				dimensions = newDimensions
-				curses.doupdate()
-			time.sleep(1)
+			newDimensions = getDimensions(self.screen)
+			if self.screenDimensions != newDimensions:
+				#log('screen changed from', self.screenDimensions, 'to', newDimensions)
+				self.screenDimensionsDidChange()
+			time.sleep(0.1)
 
 def main():
 	s = Sabnzbc(base, apiKey)
 	s.qt = threading.Thread(None, s.runQueueWin, None, list())
 	s.qt.start()
 	
-	#rt = threading.Thread(None, monitorScreenSize, None, [screen, promptWin])
-	#rt.start()
+	s.rt = threading.Thread(None, s.monitorScreenSize, None, list())
+	s.rt.start()
 	
 	while True:
 		s.promptWin.clear()
 		s.promptWin.refresh()
 		cmdStr = s.promptWin.getstr(0, 0)
-		#try: 
-		s.handleCmd(cmdStr)
-		#except: pass
+		try: s.handleCmd(cmdStr)
+		except: pass
 	
 if __name__ == '__main__':
 	if len(sys.argv) == 3:
