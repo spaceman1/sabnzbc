@@ -166,7 +166,8 @@ class Sabnzbc(object):
 		self.prompt.refresh()
 		
 		self.promptWin = curses.newwin(1, self.screenDimensions.width - 4, self.screenDimensions.height - 1, 4)
-			
+		self.die = False
+		
 	def sendCmd(self, cmd, arg1=None, arg2=None):
 		s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (self.base, cmd, self.apiKey)
 		if arg1: s += '&value='  + urllib.quote(arg1)
@@ -229,7 +230,8 @@ class Sabnzbc(object):
 		cmdName = cmdStr[0]
 	
 		if cmdName == 'q':
-			sys.exit(0)
+			self.die = True
+			return
 		
 		if cmdName == 'h':
 			self.helpOn = not helpOn
@@ -275,7 +277,7 @@ class Sabnzbc(object):
 		self.forceUpdate = False
 		self.helpOn = False
 		refreshInterval = datetime.timedelta(0, 3)
-		while True:
+		while not self.die:
 			queue = self.sendCmd('queue')['queue']
 			self.ids = list()
 			# Note: 15027d is an invalid age
@@ -323,7 +325,7 @@ class Sabnzbc(object):
 		#log('forcing update')
 	
 	def monitorScreenSize(self):
-		while True:
+		while not self.die:
 			newDimensions = getDimensions(self.screen)
 			if self.screenDimensions != newDimensions:
 				#log('screen changed from', self.screenDimensions, 'to', newDimensions)
@@ -338,7 +340,7 @@ def main():
 	s.rt = threading.Thread(None, s.monitorScreenSize, None, list())
 	s.rt.start()
 	
-	while True:
+	while not s.die:
 		s.promptWin.clear()
 		s.promptWin.refresh()
 		cmdStr = s.promptWin.getstr(0, 0)
