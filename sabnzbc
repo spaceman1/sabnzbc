@@ -128,157 +128,183 @@ def _getConfig():
 			port = line.split('=')[1].strip()
 	return (apiKey, port)
 
-def sendCmd(base, apiKey, cmd, arg1=None, arg2=None):
-	s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (base, cmd, apiKey)
-	if arg1: s += '&value='  + urllib.quote(arg1)
-	if arg2: s += '&value2=' + urllib.quote(arg2)
-	#log('sending command', s)
-	return _getJSON(s)
+class Dimensions(object):
+	def __init__(self, y, x, height, width):
+		self.y, self.x, self.height, self.width = (y, x, height, width)
 
-def printColumnHeaders(win, columns, y, x):
-	#log('printing column headers:', y, x)
-	for column in columns:
-		try: win.addnstr(y, x, column.displayName, column.width)
-		except: pass
-		x += column.width + 1
-
-def printQueue(queue, win):
-	curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
-	bgcolor = curses.color_pair(1)
+def getDimensions(win):
 	height, width = win.getmaxyx()
 	y, x = win.getbegyx()
-	win.clear()
-	visibleColumns = [column for column in columns if column.visible]
-	colWidth = sum([column.width + 1 for column in visibleColumns])
-	win.addstr('status: %s, remaining: %s MB, ETA: %s, speed: %s KB/s available: %s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
-	y += 1
-	offset = 0
-	printColumnHeaders(win, visibleColumns, y, offset)
-	y += 1
-	for index, item in enumerate(queue['slots']):
-		if y == height:
-			y = 2
-			x += colWidth
-			win.vline(1, x - 1, '|', height - 1)
-			printColumnHeaders(win, visibleColumns, 1, x)
-		if x == width: break
-		if int(item['index']) % 2 == 0:
-			win.attron(bgcolor)
-		try:
-			offset = 0
-			for column in visibleColumns:
-				try: win.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, width - x - offset)), column.width)
-				except: pass
-				offset += column.width + 1
-		except curses.error: pass
+	return Dimensions(y, x, height, width)
+	
+class Sabnzbc(object):
+	def __init__(self, base, apiKey):
+		if not base and not apiKey:
+			self.apiKey, port = _getConfig()
+			self.base = 'localhost:%s' % port
+		self.screen = curses.initscr()
+		curses.start_color()
+		self.screenDimensions = getDimensions(self.screen)
+		self.queueWin = curses.newwin(self.screenDimensions.height - 1, self.screenDimensions.width, self.screenDimensions.y, self.screenDimensions.x)
+		self.queueDimensions = getDimensions(self.queueWin)
+		self.prompt = curses.newwin(1, 4, self.screenDimensions.height - 1, 0)
+		self.prompt.addstr(0, 0, '>>>')
+		self.prompt.refresh()
+		
+		self.promptWin = curses.newwin(1, self.screenDimensions.width - 4, self.screenDimensions.height - 1, 4)
+			
+	def sendCmd(self, cmd, arg1=None, arg2=None):
+		s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (self.base, cmd, self.apiKey)
+		if arg1: s += '&value='  + urllib.quote(arg1)
+		if arg2: s += '&value2=' + urllib.quote(arg2)
+		#log('sending command', s)
+		return _getJSON(s)
+	
+	def printColumnHeaders(self, columns, y, x):
+		#log('printing column headers:', y, x)
+		for column in columns:
+			try: self.queueWin.addnstr(y, x, column.displayName, column.width)
+			except: pass
+			x += column.width + 1
+	
+	def printQueue(self, queue):
+		curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
+		bgcolor = curses.color_pair(1)
+		self.queueWin.clear()
+		visibleColumns = [column for column in self.columns if column.visible]
+		colWidth = sum([column.width + 1 for column in visibleColumns])
+		self.queueWin.addstr('status: %s, remaining: %s MB, ETA: %s, speed: %s KB/s available: %s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
+		
+		y = self.queueDimensions.y + 1
+		offset = 0
+		x = self.queueDimensions.x
+		self.printColumnHeaders(visibleColumns, y, offset)
 		y += 1
-		win.attroff(bgcolor)
-
-def printHelp(win):
-	height, width = win.getmaxyx()
-	y, x = win.getbegyx()
-	row = y + height - help.count('\n')
-	for line in help.split('\n'):
-		try: win.addnstr(row, x, line, len(line))
-		except: pass
-		row += 1
-
-def handleCmd(base, apiKey, cmdStr):
-	global ids, columns, forceUpdate, helpOn
-	cmdName = cmdStr[0]
-
-	if cmdName == 'q':
-		sys.exit(0)
-	
-	if cmdName == 'h':
-		helpOn = not helpOn
-	
-	cmdStr = cmdStr[1:].strip()
-	
-	if cmdName == 't':
-		if cmdStr[0] == '*':
-			if any([not column.visible for column in columns]):
-				for column in columns: column.visible = True
-			else:
-				for column in columns: column.visible = False
-		else:
+		for index, item in enumerate(queue['slots']):
+			if y == self.queueDimensions.height:
+				y = 2
+				x += colWidth
+				try: self.queueWin.vline(1, x - 1, '|', self.queueDimensions.height - 1)
+				except curses.error: pass
+				self.printColumnHeaders(visibleColumns, 1, x)
+			if x == self.queueDimensions.width: break
+			if int(item['index']) % 2 == 0:
+				self.queueWin.attron(bgcolor)
 			try:
-				column = [column for column in columns if column.shortName == cmdStr[0]][0]
-			except IndexError: pass
+				offset = 0
+				for column in visibleColumns:
+					try: self.queueWin.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, self.queueDimensions.width - x - offset)), column.width)
+					except:
+						log('Failed to write:', column.displayName, column.width, self.queueDimensions.width, x, offset)
+					offset += column.width + 1
+			except curses.error: pass
+			y += 1
+			self.queueWin.attroff(bgcolor)
+	
+	def printHelp(self):
+		y, x, height, width = self.queueDimensions
+		row = y + height - help.count('\n')
+		for line in help.split('\n'):
+			try: self.queueWin.addnstr(row, x, line, len(line))
+			except curses.error: pass
+			row += 1
+	
+	def handleCmd(self, cmdStr):
+		cmdName = cmdStr[0]
+	
+		if cmdName == 'q':
+			sys.exit(0)
+		
+		if cmdName == 'h':
+			self.helpOn = not helpOn
+		
+		cmdStr = cmdStr[1:].strip()
+		
+		if cmdName == 't':
+			if cmdStr[0] == '*':
+				if any([not column.visible for column in self.columns]):
+					for column in self.columns: column.visible = True
+				else:
+					for column in self.columns: column.visible = False
 			else:
-				column.visible = not column.visible
+				try:
+					column = [column for column in self.columns if column.shortName == cmdStr[0]][0]
+				except IndexError: pass
+				else:
+					column.visible = not column.visible
+		
+		start = end = None
+		startMatch = re.match(r'(\d+)', cmdStr)
+		if startMatch:
+			start = int(startMatch.groups()[0])
+			cmdStr = cmdStr[startMatch.end():].strip()
+			endMatch = re.match(r'-(\d+)', cmdStr)
+			if endMatch:
+				end = int(endMatch.groups()[0])
+				cmdStr = cmdStr[endMatch.end():].strip()
+		arg = cmdStr
+		
+		if cmdName in itemCmds and (start != None) and not ((itemCmds[cmdName][1] == None) ^ (arg == '')):
+			itemRange = range(start, end + 1)  if (end and end > start) else range(start, start + 1)
+			if itemCmds[cmdName][1] == 'id': arg = self.ids[int(arg)]
+			value2 = arg if (arg != '') else None		
+			for i in itemRange:
+				self.sendCmd(itemCmds[cmdName][0], self.ids[i], value2)
+		elif cmdName in queueCmds:
+			self.sendCmd(queueCmds[cmdName])
+		self.forceUpdate = True
 	
-	start = end = None
-	startMatch = re.match(r'(\d+)', cmdStr)
-	if startMatch:
-		start = int(startMatch.groups()[0])
-		cmdStr = cmdStr[startMatch.end():].strip()
-		endMatch = re.match(r'-(\d+)', cmdStr)
-		if endMatch:
-			end = int(endMatch.groups()[0])
-			cmdStr = cmdStr[endMatch.end():].strip()
-	arg = cmdStr
+	def runQueueWin(self):
+		self.columns = initColumns()
+		self.forceUpdate = False
+		self.helpOn = False
+		refreshInterval = datetime.timedelta(0, 3)
+		while True:
+			queue = self.sendCmd('queue')['queue']
+			self.ids = list()
+			# Note: 15027d is an invalid age
+			maxNameLen = 0
+			for item in queue['slots']:
+				self.ids.append(item['nzo_id'])
+				maxNameLen = max(len(item['filename']), maxNameLen)
+			[column for column in self.columns if column.sabName == 'filename'][0].width = maxNameLen
+			cursY, cursX = curses.getsyx()
+			self.printQueue(queue)
+			if self.helpOn: self.printHelp()
+			self.queueWin.refresh()
+			curses.setsyx(cursY, cursX)
+			curses.doupdate()
+			lastPrint = datetime.datetime.now()
+			while datetime.datetime.now() - lastPrint < refreshInterval and not self.forceUpdate: pass
+			self.forceUpdate = False
 	
-	if cmdName in itemCmds and (start != None) and not ((itemCmds[cmdName][1] == None) ^ (arg == '')):
-		itemRange = range(start, end + 1)  if (end and end > start) else range(start, start + 1)
-		if itemCmds[cmdName][1] == 'id': arg = ids[int(arg)]
-		value2 = arg if (arg != '') else None		
-		for i in itemRange:
-			sendCmd(base, apiKey, itemCmds[cmdName][0], ids[i], value2)
-	elif cmdName in queueCmds:
-		sendCmd(base, apiKey, queueCmds[cmdName])
-	forceUpdate = True
+	def monitorScreenSize(screen, promptWin):
+		dimensions = screen.getmaxyx()
+		while True:
+			newDimensions = screen.getmaxyx()
+			if newDimensions != dimensions:
+				log(newDimensions)
+				promptWin.mvwin(newDimensions[0] - 1, newDimensions[1])
+				dimensions = newDimensions
+				curses.doupdate()
+			time.sleep(1)
 
-def runQueueWin(base, apiKey, win):
-	global ids, columns, forceUpdate, helpOn
-	columns = initColumns()
-	forceUpdate = False
-	helpOn = False
-	refreshInterval = datetime.timedelta(0, 3)
+def main():
+	s = Sabnzbc(base, apiKey)
+	s.qt = threading.Thread(None, s.runQueueWin, None, list())
+	s.qt.start()
+	
+	#rt = threading.Thread(None, monitorScreenSize, None, [screen, promptWin])
+	#rt.start()
+	
 	while True:
-		queue = sendCmd(base, apiKey, 'queue')['queue']
-		ids = list()
-		# Note: 15027d is an invalid age
-		maxNameLen = 0
-		for item in queue['slots']:
-			ids.append(item['nzo_id'])
-			maxNameLen = max(len(item['filename']), maxNameLen)
-		[column for column in columns if column.sabName == 'filename'][0].width = maxNameLen
-		cursY, cursX = curses.getsyx()
-		printQueue(queue, win)
-		if helpOn: printHelp(win)
-		win.refresh()
-		curses.setsyx(cursY, cursX)
-		curses.doupdate()
-		lastPrint = datetime.datetime.now()
-		while datetime.datetime.now() - lastPrint < refreshInterval and not forceUpdate: pass
-		forceUpdate = False
-
-def main(base, apiKey):
-	if not base and not apiKey:
-		apiKey, port = _getConfig()
-		base = 'localhost:%s' % port
-	screen = curses.initscr()
-	curses.start_color()
-	height, width = screen.getmaxyx()
-	y, x = screen.getbegyx()
-	queueWin = curses.newwin(height - 1, width, y, x)
+		s.promptWin.clear()
+		s.promptWin.refresh()
+		cmdStr = s.promptWin.getstr(0, 0)
+		#try: 
+		s.handleCmd(cmdStr)
+		#except: pass
 	
-	prompt = curses.newwin(1, 4, height - 1, 0)
-	prompt.addstr(0, 0, '>>>')
-	prompt.refresh()
-	
-	promptWin = curses.newwin(1, width - 4, height - 1, 4)
-	
-	qt = threading.Thread(None, runQueueWin, None, [base, apiKey, queueWin])
-	qt.start()
-	
-	while True:
-		promptWin.clear()
-		promptWin.refresh()
-		cmdStr = promptWin.getstr(0, 0)
-		handleCmd(base, apiKey, cmdStr)
-
 if __name__ == '__main__':
 	if len(sys.argv) == 3:
 		name, base, apiKey = sys.argv
@@ -287,6 +313,6 @@ if __name__ == '__main__':
 		sys.exit(1)
 	else:
 		base = apiKey = None
-		try: main(base, apiKey)
+		try: main()
 		finally: curses.endwin()
 	
