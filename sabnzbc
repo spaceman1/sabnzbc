@@ -179,6 +179,7 @@ class Sabnzbc(object):
 		self.promptWin = curses.newwin(1, self.screenDimensions.width - 4, self.screenDimensions.height - 1, 4)
 		self.promptWin.clear()
 		self.promptWin.refresh()
+		self.promptBox = Textbox(self.promptWin)
 	
 	def __init__(self, base, apiKey):
 		if not base and not apiKey:
@@ -353,13 +354,19 @@ class Sabnzbc(object):
 				self.screenDimensionsDidChange()
 			time.sleep(0.1)
 	
+	def validator(self, c):
+		if c == 127: c = curses.ascii.BS
+		return c
+	
 	def runPromptWin(self):
 		#log('running prompt win')
-		curses.echo()
+		curses.noecho()
+		curses.cbreak()
+		self.promptWin.keypad(1)
 		while not self.die and not self.endWins:
 			self.promptWin.clear()
 			self.promptWin.refresh()
-			cmdStr = self.promptWin.getstr(0, 0)
+			cmdStr = self.promptBox.edit(self.validator)
 			try: self.handleCmd(cmdStr)
 			except: pass
 	

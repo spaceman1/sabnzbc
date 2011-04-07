@@ -26,7 +26,6 @@ You can also run a command on a single item (e.g. `d 13` deletes item 13)
 To Do and Known Issues
 ----------------------
 * Add a queue Add... command
-* Make Textbox handle control characters
 * History view + commands
 * Remember which columns are visible between runs
 * Allow column re-ordering
