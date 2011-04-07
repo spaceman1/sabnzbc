@@ -26,21 +26,34 @@ itemCmds = {
 queueCmds = {'P': 'pause', 'R': 'resume', 'S': 'shutdown'}
 
 help = '''
-=============================================================================
-| Item Commands      | Queue Commands      | Column Names                   |
-| ------------------ | ------------------- | ------------------------------ |
-| d: delete          | P: pause            | t: Status       p: Priority    |
-| m: move            | R: resume           | i: Index        c: Category    |
-| s: change script   | S: shutdown         | e: ETA          r: MB Left     |
-| c: change category |                     | l: Time Left    %: Percentage  |
-| o: change options  | Other Commands      | a: Age          b: SAB ID      |
-| y: change priority | ------------------- | s: Script       o: Options     |
-| p: pause           | q: quit             | g: Message ID   z: Size        |
-| r: resume          | h: toggle help      | v: Verbosity    n: Name        |
-|                    | t: toggle column    | m: Size (MB)    *: All         |
-| ------------------------------------------------------------------------- |
-|                    Syntax: command start-stop argument                    |
-=============================================================================
+==============================================================================
+| Item Commands       | Other Commands      | Column Names                   |
+| ------------------- | ------------------- | ------------------------------ |
+| d: delete           | P: pause queue      | t: Status       p: Priority    |
+| m: move             | R: resume queue     | i: Index        c: Category    |
+| s: change script    | S: shutdown SABnzbd | e: ETA          r: MB Left     |
+| c: change category  | q: quit             | l: Time Left    %: Percentage  |
+| o: change options   | h: toggle help      | a: Age          b: SAB ID      |
+| y: change priority  | H: toggle history   | s: Script       o: Options     |
+| p: pause            | t: toggle column    | g: Message ID   z: Size        |
+| r: resume           |                     | v: Verbosity    n: Name        |
+|                     |                     | m: Size (MB)    *: All         |
+| -------------------------------------------------------------------------- |
+|                    Syntax: command start-stop argument                     |
+==============================================================================
+'''
+
+historyHelp = '''
+==============================================================================
+| Item Commands       | Other Commands      | Column Names                   |
+| ------------------- | ------------------- | ------------------------------ |
+| d: delete           | P: pause queue      | i: Index        f: Fail Info   |
+| r: retry            | R: resume queue     | t: Status       n: Name        |
+| o: open             | q: quit             | z: Size         b: SAB ID      |
+| v: Reveal           | h: toggle help      | c: Category     l: Location    |
+|                     | H: toggle history   | d: Completed                   |
+|                     | t: toggle column    | t: toggle column               |
+==============================================================================
 '''
 
 class Column(object):
@@ -51,10 +64,17 @@ class Column(object):
 		self.width = width
 		self.visible = visible
 
-def initColumns():
+def checkColumns(columns):
+	shortNames = set()
+	for column in columns:
+		shortName = column.shortName
+		if shortName not in shortNames: shortNames.add(shortName)
+		else: raise KeyError, 'short name for %s already in use' % column.displayName
+
+def initQueueColumns():
 	columns = [
-		Column('status', shortName='t', width=11),
 		Column('index', '#', 'i', 3, True),
+		Column('status', shortName='t', width=11),
 		Column('eta', 'ETA'),
 		Column('timeleft', 'Time Left', 'l', 9),
 		Column('avg_age', 'Age', width=4),
@@ -71,12 +91,22 @@ def initColumns():
 		Column('unpackopts', 'Options'),
 		Column('size', shortName='z')
 	]
-	# Sanity check
-	shortNames = set()
-	for column in columns:
-		shortName = column.shortName
-		if shortName not in shortNames: shortNames.add(shortName)
-		else: raise KeyError, 'short name for %s already in use' % column.displayName
+	checkColumns(columns)
+	return columns
+
+def initHistoryColumns():
+	columns = [
+		Column('index', '#', 'i', 3, True),
+		Column('status', shortName='t', visible=True),
+		Column('name', visible=True),
+		Column('size', shortName='z', visible=True),
+		Column('category'),
+		Column('completed', shortName='d'),
+		Column('fail_message', 'Fail Info', visible=True),
+		Column('nzo_id', 'SAB ID', 'b', 18),
+		Column('storage', 'Location', width=80)
+	]
+	checkColumns(columns)
 	return columns
 
 def log(*args):
@@ -194,6 +224,14 @@ class Sabnzbc(object):
 		curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
 		self.die = False
 		self.endWins = False
+		self.queueColumns = initQueueColumns()
+		self.historyColumns = initHistoryColumns()
+		self.forceUpdate = False
+		self.helpOn = False
+		self.historyOn = False
+	
+	def columns(self):
+		return self.historyColumns if self.historyOn else self.queueColumns
 	
 	def sendCmd(self, cmd, arg1=None, arg2=None):
 		s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (self.base, cmd, self.apiKey)
@@ -212,7 +250,8 @@ class Sabnzbc(object):
 	def printQueue(self, queue):
 		bgcolor = curses.color_pair(1)
 		self.queueWin.clear()
-		visibleColumns = [column for column in self.columns if column.visible]
+		
+		visibleColumns = [column for column in self.columns() if column.visible]
 		colWidth = sum([column.width + 1 for column in visibleColumns])
 		self.queueWin.addstr('status: %s, remaining: %s MB, ETA: %s, speed: %s KB/s available: %s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
 		
@@ -230,7 +269,7 @@ class Sabnzbc(object):
 				except curses.error: pass
 				self.printColumnHeaders(visibleColumns, 1, x)
 			if x == self.queueDimensions.width: break
-			if int(item['index']) % 2 == 0:
+			if y % 2 == 0:
 				self.queueWin.attron(bgcolor)
 			#try:
 			offset = 0
@@ -246,8 +285,9 @@ class Sabnzbc(object):
 			self.queueWin.attroff(bgcolor)
 	
 	def printHelp(self):
-		row = self.queueDimensions.y + self.queueDimensions.height - help.count('\n')
-		for line in help.split('\n'):
+		h = historyHelp if self.historyOn else help
+		row = self.queueDimensions.y + self.queueDimensions.height - h.count('\n')
+		for line in h.split('\n'):
 			try: self.queueWin.addnstr(row, self.queueDimensions.x, line, len(line))
 			except curses.error: pass
 			row += 1
@@ -262,17 +302,21 @@ class Sabnzbc(object):
 		if cmdName == 'h':
 			self.helpOn = not self.helpOn
 		
+		if cmdName == 'H':
+			self.historyOn = not self.historyOn
+		
 		cmdStr = cmdStr[1:].strip()
 		
 		if cmdName == 't':
+			columns = self.columns()
 			if cmdStr[0] == '*':
-				if any([not column.visible for column in self.columns]):
-					for column in self.columns: column.visible = True
+				if any([not column.visible for column in columns]):
+					for column in columns: column.visible = True
 				else:
-					for column in self.columns: column.visible = False
+					for column in columns: column.visible = False
 			else:
 				try:
-					column = [column for column in self.columns if column.shortName == cmdStr[0]][0]
+					column = [column for column in columns if column.shortName == cmdStr[0]][0]
 				except IndexError: pass
 				else:
 					column.visible = not column.visible
@@ -299,20 +343,19 @@ class Sabnzbc(object):
 		self.forceUpdate = True
 	
 	def runQueueWin(self):
-		#log('running queue win')
-		self.columns = initColumns()
-		self.forceUpdate = False
-		self.helpOn = False
 		refreshInterval = datetime.timedelta(0, 3)
 		while not self.die and not self.endWins:
-			queue = self.sendCmd('queue')['queue']
+			queue = self.sendCmd('history')['history'] if self.historyOn else self.sendCmd('queue')['queue']
 			self.ids = list()
 			# Note: 15027d is an invalid age
-			maxNameLen = 0
-			for item in queue['slots']:
+			for column in self.columns(): column.width = len(column.displayName)
+			for index, item in enumerate(queue['slots']):
 				self.ids.append(item['nzo_id'])
-				maxNameLen = max(len(item['filename']), maxNameLen)
-			[column for column in self.columns if column.sabName == 'filename'][0].width = maxNameLen
+				if 'index' not in item: item['index'] = index
+				for column in self.columns(): column.width = max(len(str(item[column.sabName])), column.width)
+					#try: 
+					#except KeyError: pass
+			
 			cursY, cursX = curses.getsyx()
 			self.printQueue(queue)
 			if self.helpOn: self.printHelp()
