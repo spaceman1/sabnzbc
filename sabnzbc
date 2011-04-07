@@ -208,7 +208,6 @@ class Sabnzbc(object):
 		self.queueDimensions = getDimensions(self.queueWin)
 		self.queueWin.clear()
 		self.queueWin.refresh()
-		#log('moved queue to ', self.queueDimensions)
 	
 	def newPrompt(self):
 		self.prompt = curses.newwin(1, 4, self.screenDimensions.height - 1, 0)
@@ -247,11 +246,9 @@ class Sabnzbc(object):
 		s = 'http://%s/api?mode=%s&output=json&apikey=%s' % (self.base, cmd, self.apiKey)
 		if arg1: s += '&value='  + urllib.quote(arg1)
 		if arg2: s += '&value2=' + urllib.quote(arg2)
-		#log('sending command', s)
 		return _getJSON(s)
 	
 	def printColumnHeaders(self, columns, y, x):
-		#log('printing column headers:', y, x)
 		for column in columns:
 			try: self.queueWin.addnstr(y, x, column.displayName, column.width)
 			except: pass
@@ -281,16 +278,13 @@ class Sabnzbc(object):
 			if x == self.queueDimensions.width: break
 			if y % 2 == 0:
 				self.queueWin.attron(bgcolor)
-			#try:
 			offset = 0
 			for column in visibleColumns:
 				try: self.queueWin.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, self.queueDimensions.width - x - offset)), column.width)
 				except:
-					#log('Failed to write:', column.displayName, column.width, self.queueDimensions.width, x, offset)
 					if self.screenDimensions != getDimensions(self.screen):
 						return
 				offset += column.width + 1
-			#except curses.error: pass
 			y += 1
 			self.queueWin.attroff(bgcolor)
 	
@@ -381,8 +375,6 @@ class Sabnzbc(object):
 				self.ids.append(item['nzo_id'])
 				if 'index' not in item: item['index'] = index
 				for column in self.columns(): column.width = max(len(str(item[column.sabName])), column.width)
-					#try: 
-					#except KeyError: pass
 			
 			cursY, cursX = curses.getsyx()
 			self.printQueue()
@@ -411,7 +403,6 @@ class Sabnzbc(object):
 		while not self.die:
 			newDimensions = getDimensions(self.screen)
 			if self.screenDimensions != newDimensions:
-				#log('screen changed from', self.screenDimensions, 'to', newDimensions)
 				self.screenDimensionsDidChange()
 			time.sleep(0.1)
 	
@@ -433,7 +424,6 @@ class Sabnzbc(object):
 		if not self.endWins: return x
 	
 	def runPromptWin(self):
-		#log('running prompt win')
 		curses.noecho()
 		curses.cbreak()
 		self.promptWin.nodelay(1)
