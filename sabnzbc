@@ -9,6 +9,7 @@ import time
 import threading
 import datetime
 import platform
+import subprocess
 from curses.textpad import Textbox
 
 itemCmds = {
@@ -21,7 +22,14 @@ itemCmds = {
 	'p': ['pause', 'id'],
 	'r': ['resume', 'id'],
 	#'n': ['rename', 'str'] # Not yet implemented on SABnzbd end
-	}
+}
+
+historyCmds = {
+	'd': ['history&name=delete', None],
+	'r': ['retry', 'id']
+}
+
+openCmd = 'open' if platform.system() == 'Darwin' else 'run' if platform.system() == 'Windows' else 'xdg-open'
 
 queueCmds = {'P': 'pause', 'R': 'resume', 'S': 'shutdown'}
 
@@ -50,9 +58,11 @@ historyHelp = '''
 | d: delete           | P: pause queue      | i: Index        f: Fail Info   |
 | r: retry            | R: resume queue     | t: Status       n: Name        |
 | o: open             | q: quit             | z: Size         b: SAB ID      |
-| v: Reveal           | h: toggle help      | c: Category     l: Location    |
+| v: reveal           | h: toggle help      | c: Category     l: Location    |
 |                     | H: toggle history   | d: Completed                   |
 |                     | t: toggle column    | t: toggle column               |
+| -------------------------------------------------------------------------- |
+|                    Syntax: command start-stop argument                     |
 ==============================================================================
 '''
 
@@ -247,20 +257,20 @@ class Sabnzbc(object):
 			except: pass
 			x += column.width + 1
 	
-	def printQueue(self, queue):
+	def printQueue(self):
 		bgcolor = curses.color_pair(1)
 		self.queueWin.clear()
 		
 		visibleColumns = [column for column in self.columns() if column.visible]
 		colWidth = sum([column.width + 1 for column in visibleColumns])
-		self.queueWin.addstr('status: %s, remaining: %s MB, ETA: %s, speed: %s KB/s available: %s GB' % (queue['status'], queue['mbleft'], queue['eta'], queue['kbpersec'], queue['diskspace1']))
+		self.queueWin.addstr('status: %s, remaining: %s MB, ETA: %s, speed: %s KB/s available: %s GB' % (self.queue['status'], self.queue['mbleft'], self.queue['eta'], self.queue['kbpersec'], self.queue['diskspace1']))
 		
 		y = self.queueDimensions.y + 1
 		offset = 0
 		x = self.queueDimensions.x
 		self.printColumnHeaders(visibleColumns, y, offset)
 		y += 1
-		for index, item in enumerate(queue['slots']):
+		for index, item in enumerate(self.queue['slots']):
 			if self.endWins: return
 			if y == self.queueDimensions.height:
 				y = 2
@@ -303,7 +313,12 @@ class Sabnzbc(object):
 			self.helpOn = not self.helpOn
 		
 		if cmdName == 'H':
+			self.endWins = True
+			self.qt.join()
+			self.endWins = False
 			self.historyOn = not self.historyOn
+			self.qt = threading.Thread(None, self.runQueueWin, None, list())
+			self.qt.start() 
 		
 		cmdStr = cmdStr[1:].strip()
 		
@@ -332,24 +347,37 @@ class Sabnzbc(object):
 				cmdStr = cmdStr[endMatch.end():].strip()
 		arg = cmdStr
 		
-		if cmdName in itemCmds and (start != None) and not ((itemCmds[cmdName][1] == None) ^ (arg == '')):
+		if start != None:
 			itemRange = range(start, end + 1)  if (end and end > start) else range(start, start + 1)
-			if itemCmds[cmdName][1] == 'id': arg = self.ids[int(arg)]
+		else:
+			itemRange = None
+		
+		cmds = historyCmds if self.historyOn else itemCmds
+		
+		if cmdName in cmds and (itemRange != None) and not ((cmds[cmdName][1] == None) ^ (arg == '')):
+			cmd = cmds[cmdName]
+			if cmd[1] == 'id': arg = self.ids[int(arg)]
 			value2 = arg if (arg != '') else None		
 			for i in itemRange:
-				self.sendCmd(itemCmds[cmdName][0], self.ids[i], value2)
+				self.sendCmd(cmd[0], self.ids[i], value2)
 		elif cmdName in queueCmds:
 			self.sendCmd(queueCmds[cmdName])
+		elif cmdName == 'o' or cmdName == 'v' and self.historyOn:
+			for index in itemRange:
+				item = self.queue['slots'][index]
+				name = item['storage'] if cmdName == 'o' else os.path.dirname(item['storage'])
+				stdout, stderr = subprocess.Popen([openCmd, name], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+				#log(stdout, stderr)
 		self.forceUpdate = True
 	
 	def runQueueWin(self):
 		refreshInterval = datetime.timedelta(0, 3)
 		while not self.die and not self.endWins:
-			queue = self.sendCmd('history')['history'] if self.historyOn else self.sendCmd('queue')['queue']
+			self.queue = self.sendCmd('history')['history'] if self.historyOn else self.sendCmd('queue')['queue']
 			self.ids = list()
 			# Note: 15027d is an invalid age
 			for column in self.columns(): column.width = len(column.displayName)
-			for index, item in enumerate(queue['slots']):
+			for index, item in enumerate(self.queue['slots']):
 				self.ids.append(item['nzo_id'])
 				if 'index' not in item: item['index'] = index
 				for column in self.columns(): column.width = max(len(str(item[column.sabName])), column.width)
@@ -357,7 +385,7 @@ class Sabnzbc(object):
 					#except KeyError: pass
 			
 			cursY, cursX = curses.getsyx()
-			self.printQueue(queue)
+			self.printQueue()
 			if self.helpOn: self.printHelp()
 			self.queueWin.refresh()
 			curses.setsyx(cursY, cursX)
