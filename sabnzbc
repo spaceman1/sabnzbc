@@ -326,27 +326,18 @@ class Sabnzbc(object):
 	
 	def screenDimensionsDidChange(self):
 		self.screenDimensions = getDimensions(self.screen)
-		#log('ending window threads')
 		self.endWins = True
 		self.qt.join()
-		self.pr.join(0)
+		self.pr.join()
 		self.endWins = False
 		
-		self.queueWin.clear()
-		self.prompt.clear()
-		self.promptWin.clear()
-		
-		#curses.endwin()
-		#self.screen = curses.initscr()
 		self.newQueueWin()
 		self.newPrompt()
 		self.newPromptWin()
 		curses.doupdate()
 		self.runThreads(True)
-		#log('restarted window threads')
 		
 	def monitorScreenSize(self):
-		#log('running screen monitor')
 		while not self.die:
 			newDimensions = getDimensions(self.screen)
 			if self.screenDimensions != newDimensions:
@@ -358,15 +349,29 @@ class Sabnzbc(object):
 		if c == 127: c = curses.ascii.BS
 		return c
 	
+	def edit(self, txtBox, validate=None):
+		#Based on the curses module
+		while not self.endWins:
+			ch = txtBox.win.getch()
+			if ch == -1: continue
+			if validate:
+				ch = validate(ch)
+				if not ch: continue
+				if not txtBox.do_command(ch): break
+			txtBox.win.refresh()
+		x = txtBox.gather()
+		if not self.endWins: return x
+	
 	def runPromptWin(self):
 		#log('running prompt win')
 		curses.noecho()
 		curses.cbreak()
+		self.promptWin.nodelay(1)
 		self.promptWin.keypad(1)
 		while not self.die and not self.endWins:
 			self.promptWin.clear()
 			self.promptWin.refresh()
-			cmdStr = self.promptBox.edit(self.validator)
+			cmdStr = self.edit(self.promptBox, self.validator)
 			try: self.handleCmd(cmdStr)
 			except: pass
 	
