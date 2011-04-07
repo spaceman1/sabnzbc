@@ -44,7 +44,7 @@ Toggle Column: The abbreviation of the column to toggle. See the help window for
 To Do and Known Issues
 ----------------------
 * Add a queue Add... command
-* History view + commands
+* History commands
 * Remember which columns are visible between runs
 * Allow column re-ordering
 * Turn queue win into a pad so we can view large lists in small windows
@@ -53,3 +53,4 @@ To Do and Known Issues
 * Stop column headers and main headers from line wrapping
 * Fix up colour scheme
 * Pause for time interval
+* Command history
