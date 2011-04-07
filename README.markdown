@@ -47,9 +47,7 @@ To Do and Known Issues
 * Remember which columns are visible between runs
 * Allow column re-ordering
 * Turn queue win into a pad so we can view large lists in small windows
-* Window echoes junk during a resize
 * Restore prompt contents after resize
-* Stop column headers and main headers from line wrapping
-* Fix up colour scheme
+* Stop main headers from line wrapping
 * Pause for time interval
 * Command history
