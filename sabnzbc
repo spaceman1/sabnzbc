@@ -168,7 +168,7 @@ class Sabnzbc(object):
 		self.queueDimensions = getDimensions(self.queueWin)
 		self.queueWin.clear()
 		self.queueWin.refresh()
-		log('moved queue to ', self.queueDimensions)
+		#log('moved queue to ', self.queueDimensions)
 	
 	def newPrompt(self):
 		self.prompt = curses.newwin(1, 4, self.screenDimensions.height - 1, 0)
@@ -237,7 +237,7 @@ class Sabnzbc(object):
 			for column in visibleColumns:
 				try: self.queueWin.addnstr(y, x + offset, strWithWidth(str(item[column.sabName]), min(column.width, self.queueDimensions.width - x - offset)), column.width)
 				except:
-					log('Failed to write:', column.displayName, column.width, self.queueDimensions.width, x, offset)
+					#log('Failed to write:', column.displayName, column.width, self.queueDimensions.width, x, offset)
 					if self.screenDimensions != getDimensions(self.screen):
 						return
 				offset += column.width + 1
