@@ -246,10 +246,9 @@ class Sabnzbc(object):
 			self.queueWin.attroff(bgcolor)
 	
 	def printHelp(self):
-		y, x, height, width = self.queueDimensions
-		row = y + height - help.count('\n')
+		row = self.queueDimensions.y + self.queueDimensions.height - help.count('\n')
 		for line in help.split('\n'):
-			try: self.queueWin.addnstr(row, x, line, len(line))
+			try: self.queueWin.addnstr(row, self.queueDimensions.x, line, len(line))
 			except curses.error: pass
 			row += 1
 	
@@ -261,7 +260,7 @@ class Sabnzbc(object):
 			return
 		
 		if cmdName == 'h':
-			self.helpOn = not helpOn
+			self.helpOn = not self.helpOn
 		
 		cmdStr = cmdStr[1:].strip()
 		
