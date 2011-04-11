@@ -342,18 +342,16 @@ class Sabnzbc(object):
 		arg = cmdStr
 		
 		if start != None:
-			itemRange = range(start, end + 1)  if (end and end > start) else range(start, start + 1)
-		else:
-			itemRange = None
+			end = end + 1  if (end and end > start) else start + 1
 		
 		cmds = historyCmds if self.historyOn else itemCmds
-		
-		if cmdName in cmds and (itemRange != None) and not ((cmds[cmdName][1] == None) ^ (arg == '')):
+		if cmdName in cmds and (start != None) and not ((cmds[cmdName][1] == None) ^ (arg == '')):
 			cmd = cmds[cmdName]
 			if cmd[1] == 'id': arg = self.ids[int(arg)]
 			value2 = arg if (arg != '') else None		
-			for i in itemRange:
-				self.sendCmd(cmd[0], self.ids[i], value2)
+			targetIDs = self.ids[start:end]
+			for item in targetIDs:
+				self.sendCmd(cmd[0], item, value2)
 		elif cmdName in queueCmds:
 			self.sendCmd(queueCmds[cmdName])
 		elif cmdName == 'o' or cmdName == 'v' and self.historyOn:
