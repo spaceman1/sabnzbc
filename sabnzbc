@@ -460,6 +460,12 @@ if __name__ == '__main__':
 		sys.exit(1)
 	else:
 		base = apiKey = None
+		title = re.split(r'[\\/]', sys.argv[0])[-1]
+		if platform.system() == 'Windows':
+			os.system("title %s" % title)
+		else:
+			sys.stdout.write("\x1b]2;%s\x07" % title)
+		
 		try: main(base, apiKey)
 		finally: curses.endwin()
 	
