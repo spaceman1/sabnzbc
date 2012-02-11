@@ -329,7 +329,7 @@ class Sabnzbc(object):
 				except IndexError: pass
 				else:
 					column.visible = not column.visible
-		
+
 		start = end = None
 		startMatch = re.match(r'(\d+)', cmdStr)
 		if startMatch:
@@ -343,29 +343,34 @@ class Sabnzbc(object):
 		
 		if start != None:
 			end = end + 1  if (end and end > start) else start + 1
-		
 		cmds = historyCmds if self.historyOn else itemCmds
 		if cmdName in cmds and (start != None) and not ((cmds[cmdName][1] == None) ^ (arg == '')):
 			cmd = cmds[cmdName]
 			if cmd[1] == 'id': arg = self.ids[int(arg)]
 			value2 = arg if (arg != '') else None		
-			targetIDs = self.ids[start:end]
-			for item in targetIDs:
+			for item in self.ids[start:end]:
 				self.sendCmd(cmd[0], item, value2)
 		elif cmdName in queueCmds:
 			self.sendCmd(queueCmds[cmdName])
 		elif cmdName == 'o' or cmdName == 'v' and self.historyOn:
-			for index in itemRange:
+			for index in range(start, end):
 				item = self.queue['slots'][index]
 				name = item['storage'] if cmdName == 'o' else os.path.dirname(item['storage'])
+				log(openCmd, name)
 				stdout, stderr = subprocess.Popen([openCmd, name], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-				#log(stdout, stderr)
 		self.forceUpdate = True
 	
 	def runQueueWin(self):
 		refreshInterval = datetime.timedelta(0, 3)
 		while not self.die and not self.endWins:
-			self.queue = self.sendCmd('history')['history'] if self.historyOn else self.sendCmd('queue')['queue']
+			try:
+				self.queue = self.sendCmd('history')['history'] if self.historyOn else self.sendCmd('queue')['queue']
+			except IOError:
+				self.queueWin.clear()
+				self.queueWin.addstr(0, 0, 'Could not connect to SABnzbd on %s' % self.base)
+				self.queueWin.refresh()
+				time.sleep(1)
+				continue
 			self.ids = list()
 			# Note: 15027d is an invalid age
 			for column in self.columns(): column.width = len(column.displayName)
@@ -430,8 +435,8 @@ class Sabnzbc(object):
 			self.promptWin.clear()
 			self.promptWin.refresh()
 			cmdStr = self.edit(self.promptBox, self.validator)
-			try: self.handleCmd(cmdStr)
-			except: pass
+			self.handleCmd(cmdStr)
+			#except: log('failed')
 	
 	def runThreads(self, noRT=False):
 		self.qt = threading.Thread(None, self.runQueueWin, None, list())
